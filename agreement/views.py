@@ -4,6 +4,8 @@ from rest_framework import status, viewsets
 from .models import LegalAgreement
 from .serializers import LegalAgreementSerializer
 from django.core.mail import send_mail
+from drf_yasg.utils import swagger_auto_schema
+from drf_yasg import openapi
 from django.conf import settings
 from django.core.exceptions import PermissionDenied
 
@@ -64,18 +66,29 @@ class LegalAgreementViewSet(viewsets.ModelViewSet):
         instance = self.get_object()
         self.perform_destroy(instance)
         return Response(status=status.HTTP_204_NO_CONTENT)
-
+    
+    @swagger_auto_schema(
+            manual_parameters=[
+                openapi.Parameter(
+                    'address', 
+                    openapi.IN_QUERY, 
+                    description="Address of the party", 
+                    type=openapi.TYPE_STRING
+                )
+            ]
+        )
     @action(detail=False, methods=['get'])
     def by_party(self, request, *args, **kwargs):
-        first_party_address = request.query_params.get('first_party_address')
-        second_party_address = request.query_params.get('second_party_address')
+        address = request.query_params.get('address')
 
-        if first_party_address:
-            agreements = LegalAgreement.objects.filter(first_party_address=first_party_address)
-        elif second_party_address:
-            agreements = LegalAgreement.objects.filter(second_party_address=second_party_address)
+        if address:
+            agreements = LegalAgreement.objects.filter(
+                first_party_address=address
+            ) | LegalAgreement.objects.filter(
+                second_party_address=address
+            )
         else:
-            return Response({"detail": "Query parameter 'first_party_address' or 'second_party_address' is required."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": "Query parameter 'address' is required."}, status=status.HTTP_400_BAD_REQUEST)
 
         serializer = self.get_serializer(agreements, many=True)
         return Response(serializer.data)
