@@ -8,6 +8,10 @@ from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from django.conf import settings
 from django.core.exceptions import PermissionDenied
+from rest_framework.decorators import action
+from rest_framework.decorators import api_view
+from rest_framework.decorators import permission_classes
+from rest_framework.permissions import IsAuthenticated
 
 class LegalAgreementViewSet(viewsets.ModelViewSet):
     serializer_class = LegalAgreementSerializer
@@ -91,4 +95,35 @@ class LegalAgreementViewSet(viewsets.ModelViewSet):
             return Response({"detail": "Query parameter 'address' is required."}, status=status.HTTP_400_BAD_REQUEST)
 
         serializer = self.get_serializer(agreements, many=True)
+        data = serializer.data
+
+        for item in data:
+            agreement = LegalAgreement.objects.get(id=item['id'])
+            if agreement.first_party_address == address:
+                item['access_token'] = str(agreement.access_token)
+            else:
+                item['access_token'] = None
+        
+        return Response(data)
+
+    @action(detail=True, methods=['patch'])
+    def patch_second_party(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if instance.second_party_address != request.data.get('second_party_address'):
+            raise PermissionDenied("You do not have permission to edit this agreement.")
+        
+        second_party_fields = [
+            'second_party_name',
+            'second_party_valid_id',
+            'second_party_country',
+            'second_party_id_type',
+            'second_party_signature',
+        ]
+        
+        for field in second_party_fields:
+            if field in request.data:
+                setattr(instance, field, request.data[field])
+        
+        instance.save()
+        serializer = self.get_serializer(instance)
         return Response(serializer.data)

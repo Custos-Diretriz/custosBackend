@@ -1,7 +1,6 @@
 from django.db import models
 import uuid
 
-
 class LegalAgreement(models.Model):
     content = models.TextField()
     email = models.EmailField(null=True)
@@ -11,7 +10,6 @@ class LegalAgreement(models.Model):
 
     # First party details
     first_party_address = models.CharField(max_length=100)
-    first_party_name = models.CharField(max_length=200)
     first_party_valid_id = models.CharField(max_length=64, null=True)
     first_party_country = models.CharField(max_length=300, null=True)
     first_party_id_type = models.CharField(max_length=300, null=True)
@@ -21,13 +19,14 @@ class LegalAgreement(models.Model):
 
     # Second party details
     second_party_address = models.CharField(max_length=100)
-    second_party_name = models.CharField(max_length=200)
     second_party_valid_id = models.CharField(max_length=64, null=True)
     second_party_country = models.CharField(max_length=300, null=True)
     second_party_id_type = models.CharField(max_length=300, null=True)
     second_party_signature = models.FileField(
         upload_to="signatures/", null=True, blank=True
     )
+
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
 
     def __str__(self):
         return f"Agreement by {self.content} with {self.second_party_address}"
