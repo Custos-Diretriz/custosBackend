@@ -8,10 +8,6 @@ from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from django.conf import settings
 from django.core.exceptions import PermissionDenied
-from rest_framework.decorators import action
-from rest_framework.decorators import api_view
-from rest_framework.decorators import permission_classes
-from rest_framework.permissions import IsAuthenticated
 
 class LegalAgreementViewSet(viewsets.ModelViewSet):
     serializer_class = LegalAgreementSerializer
@@ -20,14 +16,11 @@ class LegalAgreementViewSet(viewsets.ModelViewSet):
         return LegalAgreement.objects.none()  # Disable the list action
 
     def get_object(self):
-        access_token = self.kwargs.get('access_token')
-        if not access_token:
-            raise PermissionDenied("Access token is required.")
-        
+        agreement_id = self.kwargs.get('pk')
         try:
-            return LegalAgreement.objects.get(access_token=access_token)
+            return LegalAgreement.objects.get(id=agreement_id)
         except LegalAgreement.DoesNotExist:
-            raise PermissionDenied("Invalid access token.")
+            raise PermissionDenied("Agreement not found.")
 
     def perform_create(self, serializer):
         agreement = serializer.save()
@@ -59,10 +52,25 @@ class LegalAgreementViewSet(viewsets.ModelViewSet):
     def update(self, request, *args, **kwargs):
         partial = kwargs.pop('partial', False)
         instance = self.get_object()
-
-        serializer = self.get_serializer(instance, data=request.data, partial=partial)
-        serializer.is_valid(raise_exception=True)
-        self.perform_update(serializer)
+        
+        if 'access_token' in request.data:
+            # Update through access token route
+            serializer = self.get_serializer(instance, data=request.data, partial=partial)
+            serializer.is_valid(raise_exception=True)
+            self.perform_update(serializer)
+        else:
+            # Update through ID route
+            second_party_fields = [
+                'second_party_valid_id',
+                'second_party_country',
+                'second_party_id_type',
+                'second_party_signature',
+            ]
+            for field in second_party_fields:
+                if field in request.data:
+                    setattr(instance, field, request.data[field])
+            instance.save()
+            serializer = self.get_serializer(instance)
 
         return Response(serializer.data)
 
@@ -70,17 +78,17 @@ class LegalAgreementViewSet(viewsets.ModelViewSet):
         instance = self.get_object()
         self.perform_destroy(instance)
         return Response(status=status.HTTP_204_NO_CONTENT)
-    
+
     @swagger_auto_schema(
-            manual_parameters=[
-                openapi.Parameter(
-                    'address', 
-                    openapi.IN_QUERY, 
-                    description="Address of the party", 
-                    type=openapi.TYPE_STRING
-                )
-            ]
-        )
+        manual_parameters=[
+            openapi.Parameter(
+                'address',
+                openapi.IN_QUERY,
+                description="Address of the party",
+                type=openapi.TYPE_STRING
+            )
+        ]
+    )
     @action(detail=False, methods=['get'])
     def by_party(self, request, *args, **kwargs):
         address = request.query_params.get('address')
@@ -103,27 +111,57 @@ class LegalAgreementViewSet(viewsets.ModelViewSet):
                 item['access_token'] = str(agreement.access_token)
             else:
                 item['access_token'] = None
-        
+
         return Response(data)
 
-    @action(detail=True, methods=['patch'])
-    def patch_second_party(self, request, *args, **kwargs):
-        instance = self.get_object()
-        if instance.second_party_address != request.data.get('second_party_address'):
-            raise PermissionDenied("You do not have permission to edit this agreement.")
+    @swagger_auto_schema(
+        manual_parameters=[
+            openapi.Parameter(
+                'access_token',
+                openapi.IN_QUERY,
+                description="Access token",
+                type=openapi.TYPE_STRING
+            )
+        ]
+    )
+    @action(detail=False, methods=['get'], url_path='access_token')
+    def get_by_access_token(self, request, *args, **kwargs):
+        access_token = request.query_params.get('access_token')
+        try:
+            agreement = LegalAgreement.objects.get(access_token=access_token)
+        except LegalAgreement.DoesNotExist:
+            return Response({"detail": "Invalid access token."}, status=status.HTTP_400_BAD_REQUEST)
         
-        second_party_fields = [
-            'second_party_name',
+        serializer = self.get_serializer(agreement)
+        return Response(serializer.data)
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        data = serializer.data
+        data.pop('access_token', None)
+        return Response(data)
+
+    @action(detail=False, methods=['patch', 'put'], url_path='access_token_update')
+    def update_by_access_token(self, request, *args, **kwargs):
+        access_token = request.query_params.get('access_token')
+        try:
+            instance = LegalAgreement.objects.get(access_token=access_token)
+        except LegalAgreement.DoesNotExist:
+            return Response({"detail": "Invalid access token."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        restricted_fields = [
             'second_party_valid_id',
             'second_party_country',
             'second_party_id_type',
             'second_party_signature',
         ]
+        data = request.data.copy()
+        for field in restricted_fields:
+            data.pop(field, None)
         
-        for field in second_party_fields:
-            if field in request.data:
-                setattr(instance, field, request.data[field])
+        serializer = self.get_serializer(instance, data=data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
         
-        instance.save()
-        serializer = self.get_serializer(instance)
         return Response(serializer.data)
