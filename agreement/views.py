@@ -8,14 +8,19 @@ from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from django.conf import settings
 from django.core.exceptions import PermissionDenied
-import os
-import uuid
+import os, uuid
+from rest_framework.parsers import MultiPartParser, FormParser
+from django.core.files.base import ContentFile
+
+
 
 class LegalAgreementViewSet(viewsets.ModelViewSet):
     serializer_class = LegalAgreementSerializer
+    parser_classes = [MultiPartParser, FormParser] 
+
 
     def get_queryset(self):
-        return LegalAgreement.objects.none()  # Disable the list action
+        return LegalAgreement.objects.none() 
 
     def get_object(self):
         agreement_id = self.kwargs.get('pk')
@@ -186,12 +191,20 @@ class LegalAgreementViewSet(viewsets.ModelViewSet):
         if instance.second_party_signature:
             self.rename_file(instance.second_party_signature)
 
+
+
     def rename_file(self, file_field):
         if file_field and os.path.isfile(file_field.path):
             base, extension = os.path.splitext(file_field.name)
             new_name = f"{uuid.uuid4()}{extension}"
             new_path = os.path.join(os.path.dirname(file_field.path), new_name)
 
-            os.rename(file_field.path, new_path)
-            file_field.name = new_name
-            file_field.save()
+            # Read the content of the file
+            with open(file_field.path, 'rb') as file:
+                file_content = file.read()
+
+            # Delete the old file after reading its content
+            os.remove(file_field.path)
+            # Save the file with the new name and content
+            file_field.save(new_name, ContentFile(file_content))
+
