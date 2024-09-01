@@ -10,18 +10,20 @@ class LegalAgreement(models.Model):
 
     # First party details
     first_party_address = models.CharField(max_length=100)
-    first_party_valid_id = models.CharField(max_length=64, null=True)
+    first_party_valid_id = models.ImageField(upload_to="valid_ids/", null=True, blank=True)  # Changed to ImageField
     first_party_country = models.CharField(max_length=300, null=True)
     first_party_id_type = models.CharField(max_length=300, null=True)
+    first_party_fullname = models.CharField(max_length=1000, null=True)
     first_party_signature = models.FileField(
         upload_to="signatures/", null=True, blank=True
     )
 
     # Second party details
     second_party_address = models.CharField(max_length=100)
-    second_party_valid_id = models.CharField(max_length=64, null=True)
+    second_party_valid_id = models.ImageField(upload_to="valid_ids/", null=True, blank=True)  # Changed to ImageField
     second_party_country = models.CharField(max_length=300, null=True)
     second_party_id_type = models.CharField(max_length=300, null=True)
+    second_party_fullname = models.CharField(max_length=1000, null=True)
     second_party_signature = models.FileField(
         upload_to="signatures/", null=True, blank=True
     )

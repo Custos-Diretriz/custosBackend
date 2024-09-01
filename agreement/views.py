@@ -8,6 +8,8 @@ from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from django.conf import settings
 from django.core.exceptions import PermissionDenied
+import os
+import uuid
 
 class LegalAgreementViewSet(viewsets.ModelViewSet):
     serializer_class = LegalAgreementSerializer
@@ -23,14 +25,16 @@ class LegalAgreementViewSet(viewsets.ModelViewSet):
             raise PermissionDenied("Agreement not found.")
 
     def perform_create(self, serializer):
-        agreement = serializer.save()
-        access_token = agreement.access_token
+        # Unique naming for files
+        instance = serializer.save()
+        self.rename_uploaded_files(instance)
+        access_token = instance.access_token
         
-        if agreement.email:
-            self.send_access_token_email(agreement.email, access_token)
+        if instance.email:
+            self.send_access_token_email(instance.email, access_token)
         
         response_data = {
-            "agreement": LegalAgreementSerializer(agreement).data,
+            "agreement": LegalAgreementSerializer(instance).data,
             "access_token": access_token,
         }
         return Response(response_data, status=status.HTTP_201_CREATED)
@@ -65,12 +69,14 @@ class LegalAgreementViewSet(viewsets.ModelViewSet):
                 'second_party_country',
                 'second_party_id_type',
                 'second_party_signature',
+                'second_party_fullname',
             ]
             for field in second_party_fields:
                 if field in request.data:
                     setattr(instance, field, request.data[field])
             instance.save()
             serializer = self.get_serializer(instance)
+            self.rename_uploaded_files(instance)  # Rename uploaded files after update
 
         return Response(serializer.data)
 
@@ -163,5 +169,29 @@ class LegalAgreementViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(instance, data=data, partial=True)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
+        self.rename_uploaded_files(instance)  # Rename uploaded files after update
         
         return Response(serializer.data)
+
+    def rename_uploaded_files(self, instance):
+        """
+        Function to rename uploaded files with unique names using UUID.
+        """
+        if instance.first_party_valid_id:
+            self.rename_file(instance.first_party_valid_id)
+        if instance.second_party_valid_id:
+            self.rename_file(instance.second_party_valid_id)
+        if instance.first_party_signature:
+            self.rename_file(instance.first_party_signature)
+        if instance.second_party_signature:
+            self.rename_file(instance.second_party_signature)
+
+    def rename_file(self, file_field):
+        if file_field and os.path.isfile(file_field.path):
+            base, extension = os.path.splitext(file_field.name)
+            new_name = f"{uuid.uuid4()}{extension}"
+            new_path = os.path.join(os.path.dirname(file_field.path), new_name)
+
+            os.rename(file_field.path, new_path)
+            file_field.name = new_name
+            file_field.save()
