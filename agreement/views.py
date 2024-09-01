@@ -197,7 +197,7 @@ class LegalAgreementViewSet(viewsets.ModelViewSet):
         if file_field and os.path.isfile(file_field.path):
             base, extension = os.path.splitext(file_field.name)
             new_name = f"{uuid.uuid4()}{extension}"
-            new_path = os.path.join(os.path.dirname(file_field.path), new_name)
+            new_path = os.path.join(settings.MEDIA_ROOT, new_name)  # Save to media directory
 
             # Read the content of the file
             with open(file_field.path, 'rb') as file:
@@ -205,6 +205,9 @@ class LegalAgreementViewSet(viewsets.ModelViewSet):
 
             # Delete the old file after reading its content
             os.remove(file_field.path)
-            # Save the file with the new name and content
+            
+            # Save the file with the new name and content in the media directory
             file_field.save(new_name, ContentFile(file_content))
+
+
 
