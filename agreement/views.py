@@ -106,9 +106,9 @@ class LegalAgreementViewSet(viewsets.ModelViewSet):
 
         if address:
             agreements = LegalAgreement.objects.filter(
-                first_party_address=address
+                first_party_address__iexact=address
             ) | LegalAgreement.objects.filter(
-                second_party_address=address
+                second_party_address__iexact=address
             )
         else:
             return Response({"detail": "Query parameter 'address' is required."}, status=status.HTTP_400_BAD_REQUEST)
