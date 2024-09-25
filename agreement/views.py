@@ -118,7 +118,7 @@ class LegalAgreementViewSet(viewsets.ModelViewSet):
 
         for item in data:
             agreement = LegalAgreement.objects.get(id=item['id'])
-            if agreement.first_party_address == address:
+            if agreement.first_party_address.lower() == address.lower(): 
                 item['access_token'] = str(agreement.access_token)
             else:
                 item['access_token'] = None
