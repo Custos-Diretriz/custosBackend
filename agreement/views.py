@@ -190,7 +190,33 @@ class LegalAgreementViewSet(viewsets.ModelViewSet):
             self.rename_file(instance.first_party_signature)
         if instance.second_party_signature:
             self.rename_file(instance.second_party_signature)
+        
+        
+    @action(detail=True, methods=['post'], url_path='sign')
+    def sign_agreement(self, request, pk=None):
+            """
+            Endpoint to handle signing an agreement by the second party.
+            This expects a signature file to be uploaded.
+            """
+            agreement = self.get_object()
+            # Check if the agreement already has a second party signature
+            if agreement.second_party_signature:
+                return Response({"detail": "This agreement is already signed by the second party."}, status=status.HTTP_400_BAD_REQUEST)
+            
+            signature_file = request.FILES.get('second_party_signature')
+            if not signature_file:
+                return Response({"detail": "Signature file is required."}, status=status.HTTP_400_BAD_REQUEST)
 
+            # Save the second party signature
+            agreement.second_party_signature.save(signature_file.name, ContentFile(signature_file.read()))
+            agreement.save()
+
+            # Rename the file for unique naming
+            self.rename_file(agreement.second_party_signature)
+
+            # Return the updated agreement
+            serializer = self.get_serializer(agreement)
+            return Response(serializer.data, status=status.HTTP_200_OK)
 
 
     def rename_file(self, file_field):
