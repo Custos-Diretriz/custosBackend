@@ -153,7 +153,7 @@ class LegalAgreementViewSet(viewsets.ModelViewSet):
         data.pop('access_token', None)
         return Response(data)
 
-    @action(detail=False, methods=['patch', 'put'], url_path='access_token_update')
+    @action(detail=False, methods=['patch', 'put'], url_path='update_by_access_token')
     def update_by_access_token(self, request, *args, **kwargs):
         access_token = request.query_params.get('access_token')
         try:
